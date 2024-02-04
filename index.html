@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>3D Labyrinth</title>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden; /* Prevents scrolling */
+      }
+      canvas {
+        display: block; /* Ensures canvas takes full available space */
+      }
+      #miniMap {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        width: 200px;
+        height: 200px;
+        background-color: rgba(0, 0, 0, 0.7); /* Semi-transparent black */
+      }
+      #overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5); /* Semi-transparent overlay */
+        color: white;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+        text-align: center;
+        font-size: 20px;
+        cursor: pointer; /* Indicates the overlay is clickable */
+      }
+    </style>
+  </head>
+  <body>
+    <div id="miniMap"></div>
+    <div id="overlay" onclick="requestPointerLock()">
+      <p>Click to capture the mouse</p>
+      <p>Use WASD or Arrow keys to navigate</p>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.1/three.min.js"></script>
+    <script>
+      // Maze dimensions and unit size
+      const mazeRows = 51,
+        mazeCols = 51,
+        unitSize = 3;
+
+      // Generate maze layout with recursive division algorithm
+      function generateMaze(rows, cols, pathWidth = 3, wallWidth = 1) {
+        // Initialize maze grid and visited cells tracker
+        const maze = Array.from({ length: rows }, () => Array(cols).fill(1));
+        const visited = Array.from({ length: rows }, () =>
+          Array(cols).fill(false)
+        );
+        const directions = [
+          [0, 1],
+          [1, 0],
+          [0, -1],
+          [-1, 0],
+        ]; // Possible movement directions
+
+        // Shuffle array utility to randomize wall openings
+        function shuffleArray(array) {
+          for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+          }
+        }
+
+        // Carve paths in the maze by marking cells as part of the path
+        function carvePath(x, y) {
+          visited[y][x] = true;
+          maze[y][x] = 0; // Mark current cell as path
+          shuffleArray(directions); // Randomize directions for organic look
+
+          directions.forEach(([dx, dy]) => {
+            const nx = x + dx * (pathWidth + wallWidth);
+            const ny = y + dy * (pathWidth + wallWidth);
+            if (withinBounds(nx, ny, rows, cols) && !visited[ny][nx]) {
+              for (
+                let step = 1;
+                step <= pathWidth + wallWidth &&
+                withinBounds(x + dx * step, y + dy * step, rows, cols);
+                step++
+              ) {
+                maze[y + dy * step][x + dx * step] = step <= pathWidth ? 0 : 1;
+                visited[y + dy * step][x + dx * step] = true;
+              }
+              carvePath(nx, ny);
+            }
+          });
+        }
+
+        // Check if coordinates are within maze bounds
+        function withinBounds(x, y, rows, cols) {
+          return x >= 0 && x < cols && y >= 0 && y < rows;
+        }
+
+        carvePath(1, 1); // Start carving from (1,1) to ensure path is inside bounds
+        return maze;
+      }
+
+      // Three.js scene setup
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(
+        75,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        10000
+      );
+      camera.position.set(0, 10, 150); // Set camera above the maze entrance
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.shadowMap.enabled = true;
+      document.body.appendChild(renderer.domElement);
+      renderer.setClearColor(0x87ceeb); // Light blue sky color
+
+      // Maze generation and rendering
+      const maze = generateMaze(mazeRows, mazeCols);
+
+      // Generate brick colors
+      const generateBrickColor = () =>
+        `rgb(${200 + Math.floor(Math.random() * 45)}, ${
+          120 + Math.floor(Math.random() * 25)
+        }, ${120 + Math.floor(Math.random() * 20)})`;
+      const generateGrayBrickColor = () => {
+        const grayValue = 175 + Math.floor(Math.random() * 80);
+        return `rgb(${grayValue}, ${grayValue}, ${grayValue})`;
+      };
+
+      // Render floor of the maze
+      for (let row = 0; row < mazeRows; row++) {
+        for (let col = 0; col < mazeCols; col++) {
+          const floorBrickGeometry = new THREE.BoxGeometry(
+            unitSize,
+            0.2,
+            unitSize
+          );
+          const floorBrickMaterial = new THREE.MeshPhongMaterial({
+            color: generateGrayBrickColor(),
+          });
+          const floorBrick = new THREE.Mesh(
+            floorBrickGeometry,
+            floorBrickMaterial
+          );
+          floorBrick.position.set(
+            col * unitSize - (mazeCols * unitSize) / 2,
+            -0.1,
+            row * unitSize - (mazeRows * unitSize) / 2
+          );
+          scene.add(floorBrick);
+        }
+      }
+
+      // Render walls of the maze
+      maze.forEach((row, rowIndex) => {
+        row.forEach((cell, colIndex) => {
+          if (cell === 0) {
+            // Render wall if cell is part of the path
+            const bricksInWall = 10;
+            for (let i = 0; i < bricksInWall; i++) {
+              const brickHeight = 1.6;
+              const cubeGeometry = new THREE.BoxGeometry(
+                unitSize,
+                brickHeight,
+                unitSize
+              );
+              const wallMaterial = new THREE.MeshPhongMaterial({
+                color: generateBrickColor(),
+              });
+              const brick = new THREE.Mesh(cubeGeometry, wallMaterial);
+              brick.position.set(
+                colIndex * unitSize - (mazeCols * unitSize) / 2,
+                brickHeight / 2 + i * brickHeight,
+                rowIndex * unitSize - (mazeRows * unitSize) / 2
+              );
+              brick.castShadow = true;
+              brick.receiveShadow = true;
+              scene.add(brick);
+            }
+          }
+        });
+      });
+
+      camera.rotation.order = "YXZ"; // Set rotation order for camera
+
+      // Lighting setup
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+      scene.add(ambientLight);
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+      directionalLight.position.set(10, 20, 10);
+      directionalLight.castShadow = true;
+      scene.add(directionalLight);
+
+      // Player movement setup
+      let moveSpeed = 1;
+      let turnSpeed = Math.PI * 0.02;
+      let deltaX = 0,
+        deltaZ = 0,
+        deltaYaw = 0;
+
+      // Update camera position based on movement and collision checks
+      function updateCameraPosition() {
+        let forwardComponent = -Math.sin(camera.rotation.y) * deltaZ;
+        let lateralComponent =
+          -Math.sin(camera.rotation.y + Math.PI / 2) * deltaX;
+        let forwardComponentZ = -Math.cos(camera.rotation.y) * deltaZ;
+        let lateralComponentZ =
+          -Math.cos(camera.rotation.y + Math.PI / 2) * deltaX;
+
+        // Forward/backward movement
+        let nextXForward = camera.position.x + forwardComponent;
+        let nextZForward = camera.position.z + forwardComponentZ;
+        if (!isColliding(nextXForward, camera.position.z))
+          camera.position.x += forwardComponent;
+        if (!isColliding(camera.position.x, nextZForward))
+          camera.position.z += forwardComponentZ;
+
+        // Lateral movement
+        let nextXLateral = camera.position.x + lateralComponent;
+        let nextZLateral = camera.position.z + lateralComponentZ;
+        if (!isColliding(nextXLateral, camera.position.z))
+          camera.position.x += lateralComponent;
+        if (!isColliding(camera.position.x, nextZLateral))
+          camera.position.z += lateralComponentZ;
+
+        camera.rotation.y += deltaYaw; // Apply yaw rotation
+      }
+
+      // Collision detection with maze walls
+      function isColliding(x, z) {
+        const halfUnitSize = unitSize / 2;
+        const collisionRadius = halfUnitSize * 0.8;
+        for (let row = 0; row < mazeRows; row++) {
+          for (let col = 0; col < mazeCols; col++) {
+            if (maze[row][col] === 0) {
+              const wallX = col * unitSize - (mazeCols * unitSize) / 2;
+              const wallZ = row * unitSize - (mazeRows * unitSize) / 2;
+              if (
+                x + collisionRadius > wallX - halfUnitSize &&
+                x - collisionRadius < wallX + halfUnitSize &&
+                z + collisionRadius > wallZ - halfUnitSize &&
+                z - collisionRadius < wallZ + halfUnitSize
+              ) {
+                return true; // Collision detected
+              }
+            }
+          }
+        }
+        return false; // No collision
+      }
+
+      // Handle key press events for player movement
+      document.addEventListener("keydown", function (event) {
+        switch (event.keyCode) {
+          case 87: // W key
+          case 38: // Up arrow
+            deltaZ = moveSpeed;
+            break;
+          case 83: // S key
+          case 40: // Down arrow
+            deltaZ = -moveSpeed;
+            break;
+          case 65: // A key
+          case 37: // Left arrow
+            deltaX = moveSpeed;
+            break;
+          case 68: // D key
+          case 39: // Right arrow
+            deltaX = -moveSpeed;
+            break;
+        }
+      });
+
+      // Reset movement deltas on key up to stop movement
+      document.addEventListener("keyup", function (event) {
+        switch (event.keyCode) {
+          case 87: // W
+          case 83: // S
+          case 38: // Up arrow
+          case 40: // Down arrow
+            deltaZ = 0;
+            break;
+          case 65: // A
+          case 68: // D
+          case 37: // Left arrow
+          case 39: // Right arrow
+            deltaX = 0;
+            break;
+        }
+      });
+
+      // Minimap rendering
+      const miniMapContainer = document.getElementById("miniMap");
+      function createMiniMap() {
+        const miniMapCanvas = document.createElement("canvas");
+        miniMapCanvas.width = 200;
+        miniMapCanvas.height = 200;
+        const ctx = miniMapCanvas.getContext("2d");
+
+        // Draw maze layout on minimap
+        maze.forEach((row, rowIndex) => {
+          row.forEach((cell, colIndex) => {
+            if (!cell) {
+              // Draw wall
+              const wallX = (colIndex / mazeCols) * miniMapCanvas.width;
+              const wallY = (rowIndex / mazeRows) * miniMapCanvas.height;
+              const wallWidth = 4;
+              const wallHeight = 4;
+              ctx.fillStyle = "#CCCCCC";
+              ctx.fillRect(wallX, wallY, wallWidth, wallHeight);
+            }
+          });
+        });
+
+        // Draw player position on minimap
+        const playerX =
+          ((camera.position.x + (mazeCols * unitSize) / 2) /
+            (mazeCols * unitSize)) *
+          miniMapCanvas.width;
+        const playerY =
+          ((camera.position.z + (mazeRows * unitSize) / 2) /
+            (mazeRows * unitSize)) *
+          miniMapCanvas.height;
+        ctx.fillStyle = "red";
+        ctx.beginPath();
+        ctx.arc(playerX, playerY, 3, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Rotate the minimap to match the player's view
+        miniMapContainer.style.transform = `rotate(${camera.rotation.y}rad)`;
+        miniMapContainer.style.transformOrigin = `center center`;
+
+        // Update minimap container with new canvas
+        miniMapContainer.innerHTML = "";
+        miniMapContainer.appendChild(miniMapCanvas);
+      }
+
+      // Camera rotation based on mouse movement
+      function updateCameraRotation(event) {
+        const sensitivity = 0.002;
+        camera.rotation.y -= event.movementX * sensitivity;
+        camera.rotation.x -= event.movementY * sensitivity;
+        const maxPitch = Math.PI / 2.5; // Limit vertical rotation
+        camera.rotation.x = Math.max(
+          -maxPitch,
+          Math.min(maxPitch, camera.rotation.x)
+        );
+      }
+
+      // Request pointer lock for immersive navigation
+      function requestPointerLock() {
+        var canvas = renderer.domElement;
+        canvas.requestPointerLock =
+          canvas.requestPointerLock || canvas.mozRequestPointerLock;
+        canvas.requestPointerLock();
+      }
+
+      // Handle pointer lock state changes
+      function onPointerLockChange() {
+        var overlay = document.getElementById("overlay");
+        if (
+          document.pointerLockElement === renderer.domElement ||
+          document.mozPointerLockElement === renderer.domElement
+        ) {
+          overlay.style.display = "none";
+          document.addEventListener("mousemove", updateCameraRotation, false);
+        } else {
+          overlay.style.display = "flex";
+          document.removeEventListener(
+            "mousemove",
+            updateCameraRotation,
+            false
+          );
+        }
+      }
+
+      // Set up pointer lock event listeners
+      document.addEventListener(
+        "pointerlockchange",
+        onPointerLockChange,
+        false
+      );
+      document.addEventListener(
+        "mozpointerlockchange",
+        onPointerLockChange,
+        false
+      );
+
+      // Initial overlay setup
+      document.getElementById("overlay").style.display = "flex";
+      document
+        .getElementById("overlay")
+        .addEventListener("click", requestPointerLock);
+
+      // Make renderer focusable to enable pointer lock
+      renderer.domElement.setAttribute("tabindex", "0");
+
+      // Animation loop for rendering and updates
+      function animate() {
+        updateCameraPosition();
+        createMiniMap();
+        requestAnimationFrame(animate);
+        renderer.render(scene, camera);
+      }
+
+      animate(); // Start the animation loop
+    </script>
+  </body>
+</html>
