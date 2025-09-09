@@ -9,12 +9,14 @@ Try it here:
 
 1. Use W A S D keys or the arrow keys to navigate through the maze.
 2. Use the mouse to turn and look around.
+3. Find the golden cube to escape the maze as quickly as possible. A timer in the corner tracks how long you take.
 
 ## Features
 
 - 3D graphics using Three.js.
 - Randomly generated mazes for each playthrough.
 - Real-time rendering and movement.
+- Simple timer and goal cube for an extra challenge.
 
 ## Usage
 
