@@ -172,8 +172,8 @@
       // Render walls of the maze
       maze.forEach((row, rowIndex) => {
         row.forEach((cell, colIndex) => {
-          if (cell === 1) {
-            // Render wall for maze boundaries
+          if (cell === 0) {
+            // Render wall if cell is part of the path
             const bricksInWall = 10;
             for (let i = 0; i < bricksInWall; i++) {
               const brickHeight = 1.6;
@@ -277,7 +277,7 @@
         const collisionRadius = halfUnitSize * 0.8;
         for (let row = 0; row < mazeRows; row++) {
           for (let col = 0; col < mazeCols; col++) {
-            if (maze[row][col] === 1) {
+            if (maze[row][col] === 0) {
               const wallX = col * unitSize - (mazeCols * unitSize) / 2;
               const wallZ = row * unitSize - (mazeRows * unitSize) / 2;
               if (
@@ -363,7 +363,7 @@
         // Draw maze layout on minimap
         maze.forEach((row, rowIndex) => {
           row.forEach((cell, colIndex) => {
-            if (cell) {
+            if (!cell) {
               // Draw wall
               const wallX = (colIndex / mazeCols) * miniMapCanvas.width;
               const wallY = (rowIndex / mazeRows) * miniMapCanvas.height;
