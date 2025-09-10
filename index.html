@@ -208,7 +208,7 @@
         do {
           gx = Math.floor(Math.random() * mazeCols);
           gy = Math.floor(Math.random() * mazeRows);
-        } while (maze[gy][gx] !== 0);
+        } while (maze[gy][gx] !== 1); // 1 indicates an open cell
         return { x: gx, y: gy };
       }
       const { x: goalX, y: goalY } = getRandomOpenCell();
