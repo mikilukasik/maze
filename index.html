@@ -19,6 +19,16 @@
         height: 200px;
         background-color: rgba(0, 0, 0, 0.7); /* Semi-transparent black */
       }
+      #timer {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        background: rgba(0, 0, 0, 0.5);
+        color: white;
+        padding: 5px 10px;
+        border-radius: 4px;
+        font-family: sans-serif;
+      }
       #overlay {
         position: absolute;
         top: 0;
@@ -39,9 +49,11 @@
   </head>
   <body>
     <div id="miniMap"></div>
-    <div id="overlay" onclick="requestPointerLock()">
+    <div id="timer">Time: 0.0s</div>
+    <div id="overlay">
       <p>Click to capture the mouse</p>
       <p>Use WASD or Arrow keys to navigate</p>
+      <p>Find the golden cube to escape</p>
     </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.1/three.min.js"></script>
     <script>
@@ -187,6 +199,27 @@
         });
       });
 
+      // Goal cube placed at a random open cell
+      const goalGeometry = new THREE.BoxGeometry(unitSize, unitSize, unitSize);
+      const goalMaterial = new THREE.MeshPhongMaterial({ color: 0xffd700 });
+      const goal = new THREE.Mesh(goalGeometry, goalMaterial);
+      function getRandomOpenCell() {
+        let gx, gy;
+        do {
+          gx = Math.floor(Math.random() * mazeCols);
+          gy = Math.floor(Math.random() * mazeRows);
+        } while (maze[gy][gx] !== 0);
+        return { x: gx, y: gy };
+      }
+      const { x: goalX, y: goalY } = getRandomOpenCell();
+      goal.position.set(
+        goalX * unitSize - (mazeCols * unitSize) / 2,
+        unitSize / 2,
+        goalY * unitSize - (mazeRows * unitSize) / 2
+      );
+      goal.castShadow = true;
+      scene.add(goal);
+
       camera.rotation.order = "YXZ"; // Set rotation order for camera
 
       // Lighting setup
@@ -196,6 +229,11 @@
       directionalLight.position.set(10, 20, 10);
       directionalLight.castShadow = true;
       scene.add(directionalLight);
+
+      // Timer and game state
+      let startTime = null;
+      let gameCompleted = false;
+      const timerEl = document.getElementById("timer");
 
       // Player movement setup
       let moveSpeed = 1;
@@ -253,6 +291,24 @@
           }
         }
         return false; // No collision
+      }
+
+      // Check if player reached the goal
+      function checkGoal() {
+        if (gameCompleted) return;
+        const distance = Math.hypot(
+          camera.position.x - goal.position.x,
+          camera.position.z - goal.position.z
+        );
+        if (distance < unitSize) {
+          gameCompleted = true;
+          const timeTaken = ((Date.now() - startTime) / 1000).toFixed(1);
+          const overlay = document.getElementById("overlay");
+          overlay.innerHTML = `<p>You found the golden cube!</p><p>Time: ${timeTaken}s</p><p>Click to play again</p>`;
+          overlay.style.display = "flex";
+          overlay.onclick = () => window.location.reload();
+          document.exitPointerLock();
+        }
       }
 
       // Handle key press events for player movement
@@ -370,13 +426,19 @@
         ) {
           overlay.style.display = "none";
           document.addEventListener("mousemove", updateCameraRotation, false);
+          if (!startTime) startTime = Date.now();
         } else {
-          overlay.style.display = "flex";
           document.removeEventListener(
             "mousemove",
             updateCameraRotation,
             false
           );
+          if (!gameCompleted) {
+            overlay.innerHTML =
+              "<p>Click to capture the mouse</p><p>Use WASD or Arrow keys to navigate</p><p>Find the golden cube to escape</p>";
+            overlay.style.display = "flex";
+            overlay.onclick = requestPointerLock;
+          }
         }
       }
 
@@ -393,10 +455,9 @@
       );
 
       // Initial overlay setup
-      document.getElementById("overlay").style.display = "flex";
-      document
-        .getElementById("overlay")
-        .addEventListener("click", requestPointerLock);
+      const overlayElement = document.getElementById("overlay");
+      overlayElement.style.display = "flex";
+      overlayElement.onclick = requestPointerLock;
 
       // Make renderer focusable to enable pointer lock
       renderer.domElement.setAttribute("tabindex", "0");
@@ -405,6 +466,10 @@
       function animate() {
         updateCameraPosition();
         createMiniMap();
+        if (startTime && !gameCompleted) {
+          timerEl.textContent = `Time: ${((Date.now() - startTime) / 1000).toFixed(1)}s`;
+        }
+        checkGoal();
         requestAnimationFrame(animate);
         renderer.render(scene, camera);
       }
