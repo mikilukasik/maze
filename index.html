@@ -199,14 +199,24 @@
         });
       });
 
-      // Goal cube at maze exit
+      // Goal cube placed at a random open cell
       const goalGeometry = new THREE.BoxGeometry(unitSize, unitSize, unitSize);
       const goalMaterial = new THREE.MeshPhongMaterial({ color: 0xffd700 });
       const goal = new THREE.Mesh(goalGeometry, goalMaterial);
+      function getRandomOpenCell() {
+        let gx, gy;
+        do {
+          gx = Math.floor(Math.random() * mazeCols);
+          gy = Math.floor(Math.random() * mazeRows);
+        } while (maze[gy][gx] !== 0);
+        return { x: gx, y: gy };
+      }
+      const { x: goalX, y: goalY } = getRandomOpenCell();
       goal.position.set(
-        (mazeCols - 2) * unitSize - (mazeCols * unitSize) / 2,
+        goalX * unitSize - (mazeCols * unitSize) / 2,
         unitSize / 2,
-        (mazeRows - 2) * unitSize - (mazeRows * unitSize) / 2
+        goalY * unitSize - (mazeRows * unitSize) / 2
+
       );
       goal.castShadow = true;
       scene.add(goal);

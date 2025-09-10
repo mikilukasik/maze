@@ -9,7 +9,7 @@ Try it here:
 
 1. Use W A S D keys or the arrow keys to navigate through the maze.
 2. Use the mouse to turn and look around.
-3. Find the golden cube to escape the maze as quickly as possible. A timer in the corner tracks how long you take.
+3. Find the golden cube, which spawns at a random location, to escape the maze as quickly as possible. A timer in the corner tracks how long you take.
 
 ## Features
 
