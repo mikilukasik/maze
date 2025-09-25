@@ -137,76 +137,67 @@
 
       // Generate brick colors
       const generateBrickColor = () =>
-        new THREE.Color(
-          (200 + Math.floor(Math.random() * 45)) / 255,
-          (120 + Math.floor(Math.random() * 25)) / 255,
-          (120 + Math.floor(Math.random() * 20)) / 255
-        );
+        `rgb(${200 + Math.floor(Math.random() * 45)}, ${
+          120 + Math.floor(Math.random() * 25)
+        }, ${120 + Math.floor(Math.random() * 20)})`;
       const generateGrayBrickColor = () => {
-        const grayValue = (175 + Math.floor(Math.random() * 80)) / 255;
-        return new THREE.Color(grayValue, grayValue, grayValue);
+        const grayValue = 175 + Math.floor(Math.random() * 80);
+        return `rgb(${grayValue}, ${grayValue}, ${grayValue})`;
       };
 
-      // Render floor using an instanced mesh
-      const floorGeometry = new THREE.BoxGeometry(unitSize, 0.2, unitSize);
-      const floorMaterial = new THREE.MeshPhongMaterial({ vertexColors: true });
-      const floorMesh = new THREE.InstancedMesh(
-        floorGeometry,
-        floorMaterial,
-        mazeRows * mazeCols
-      );
-      const floorMatrix = new THREE.Matrix4();
-      let floorIndex = 0;
+      // Render floor of the maze
       for (let row = 0; row < mazeRows; row++) {
         for (let col = 0; col < mazeCols; col++) {
-          floorMatrix.setPosition(
+          const floorBrickGeometry = new THREE.BoxGeometry(
+            unitSize,
+            0.2,
+            unitSize
+          );
+          const floorBrickMaterial = new THREE.MeshPhongMaterial({
+            color: generateGrayBrickColor(),
+          });
+          const floorBrick = new THREE.Mesh(
+            floorBrickGeometry,
+            floorBrickMaterial
+          );
+          floorBrick.position.set(
             col * unitSize - (mazeCols * unitSize) / 2,
             -0.1,
             row * unitSize - (mazeRows * unitSize) / 2
           );
-          floorMesh.setMatrixAt(floorIndex, floorMatrix);
-          floorMesh.setColorAt(floorIndex, generateGrayBrickColor());
-          floorIndex++;
+          scene.add(floorBrick);
         }
       }
-      floorMesh.instanceMatrix.needsUpdate = true;
-      floorMesh.instanceColor.needsUpdate = true;
-      floorMesh.receiveShadow = true;
-      scene.add(floorMesh);
 
-      // Render walls using a single instanced mesh
-      let wallCount = 0;
-      maze.forEach((row) => row.forEach((cell) => cell === 1 && wallCount++));
-      const bricksInWall = 10;
-      const brickHeight = 1.6;
-      const wallGeometry = new THREE.BoxGeometry(
-        unitSize,
-        bricksInWall * brickHeight,
-        unitSize
-      );
-      const wallMaterial = new THREE.MeshPhongMaterial({ vertexColors: true });
-      const walls = new THREE.InstancedMesh(wallGeometry, wallMaterial, wallCount);
-      const wallMatrix = new THREE.Matrix4();
-      let wallIndex = 0;
+      // Render walls of the maze
       maze.forEach((row, rowIndex) => {
         row.forEach((cell, colIndex) => {
-          if (cell === 1) {
-            wallMatrix.setPosition(
-              colIndex * unitSize - (mazeCols * unitSize) / 2,
-              (bricksInWall * brickHeight) / 2,
-              rowIndex * unitSize - (mazeRows * unitSize) / 2
-            );
-            walls.setMatrixAt(wallIndex, wallMatrix);
-            walls.setColorAt(wallIndex, generateBrickColor());
-            wallIndex++;
+          if (cell === 0) {
+            // Render wall if cell is part of the path
+            const bricksInWall = 10;
+            for (let i = 0; i < bricksInWall; i++) {
+              const brickHeight = 1.6;
+              const cubeGeometry = new THREE.BoxGeometry(
+                unitSize,
+                brickHeight,
+                unitSize
+              );
+              const wallMaterial = new THREE.MeshPhongMaterial({
+                color: generateBrickColor(),
+              });
+              const brick = new THREE.Mesh(cubeGeometry, wallMaterial);
+              brick.position.set(
+                colIndex * unitSize - (mazeCols * unitSize) / 2,
+                brickHeight / 2 + i * brickHeight,
+                rowIndex * unitSize - (mazeRows * unitSize) / 2
+              );
+              brick.castShadow = true;
+              brick.receiveShadow = true;
+              scene.add(brick);
+            }
           }
         });
       });
-      walls.instanceMatrix.needsUpdate = true;
-      walls.instanceColor.needsUpdate = true;
-      walls.castShadow = true;
-      walls.receiveShadow = true;
-      scene.add(walls);
 
       // Goal cube placed at a random open cell
       const goalGeometry = new THREE.BoxGeometry(unitSize, unitSize, unitSize);
@@ -217,7 +208,7 @@
         do {
           gx = Math.floor(Math.random() * mazeCols);
           gy = Math.floor(Math.random() * mazeRows);
-          } while (maze[gy][gx] !== 0); // 0 indicates an open cell
+        } while (maze[gy][gx] !== 1); // 1 indicates an open cell
         return { x: gx, y: gy };
       }
       const { x: goalX, y: goalY } = getRandomOpenCell();
@@ -372,7 +363,7 @@
         // Draw maze layout on minimap
         maze.forEach((row, rowIndex) => {
           row.forEach((cell, colIndex) => {
-            if (cell === 1) {
+            if (!cell) {
               // Draw wall
               const wallX = (colIndex / mazeCols) * miniMapCanvas.width;
               const wallY = (rowIndex / mazeRows) * miniMapCanvas.height;
